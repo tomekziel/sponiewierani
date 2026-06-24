@@ -1,0 +1,191 @@
+
+#Szkolenie dzień 4
+
+
+library (tidyverse)
+
+setwd("c:/users/tomek/dane")
+otomoto <- read.csv("otomoto.csv")
+
+
+wybraneoferty <- otomoto %>%
+  mutate(oferty_marka = n(), .by=c(mark)) %>%
+  summarise(oferty_markamodel=n(), .by = c(mark, model, oferty_marka) ) %>%
+  arrange(desc(oferty_markamodel)) %>%
+  slice_head(n=3, by=mark) %>%
+  filter( oferty_marka>5000 &  grepl("d", mark) )
+  
+# możemy każdy krok wykonać osobno
+
+krok1 <- otomoto %>% mutate(oferty_marka = n(), .by=c(mark))
+
+krok2 <- krok1 %>% summarise(oferty_markamodel=n(), .by = c(mark, model, oferty_marka) )
+
+#....
+
+# wariant z co piątym autem
+# slice(which(row_number() %% 5 == 1), .by=mark) %>%
+
+
+# Przefiltrowane dane do wykresów
+
+otomoto <- 
+  read.csv("otomoto.csv") %>%
+  filter(price<=400000 & year>=2016 & year<2022) %>%
+  mutate(year_factor=as_factor(year))
+
+otomoto %>%
+  ggplot(aes(x=price)) +
+  stat_bin(bins = 40)
+
+otomoto %>%
+  ggplot(aes(x=price, fill=year_factor)) +
+  stat_bin(bins = 40) +
+  scale_x_continuous(labels = scales::comma)
+
+otomoto %>%
+  ggplot(aes(x=price, fill=year_factor)) +
+  stat_bin(bins = 40, position = "fill") +
+  scale_x_continuous(labels = scales::comma)
+
+library(ggthemes)
+# ewentualnie najpierw
+# install.packages("ggthemes")
+
+otomoto %>%
+  ggplot(aes(x=price, fill=year_factor)) +
+  stat_bin(bins = 40) +
+  scale_x_continuous(labels = scales::comma) +
+  theme_wsj() + scale_fill_wsj()
+
+
+otomoto %>%
+  ggplot(aes(x=price, fill=year_factor)) +
+  stat_bin(bins = 40) +
+  scale_x_continuous(labels = scales::comma) +
+  theme_economist() + scale_fill_economist()
+  
+  
+otomoto %>%
+  ggplot(aes(x=price, fill=year_factor)) +
+  stat_bin(bins = 40)+
+  scale_x_continuous(labels = scales::comma) +
+  facet_wrap( ~year_factor )
+
+otomoto %>%
+  ggplot(aes(x=price, fill=year_factor)) +
+  stat_bin(bins = 40) +
+  scale_x_continuous(labels = scales::comma) +
+  facet_grid( vars(year_factor), vars(fuel) )
+
+
+for(y in unique(otomoto$year_factor)){
+  for (f in unique(otomoto$fuel)){
+ 
+    otomoto %>%
+      filter( year == y & fuel == f) %>%
+      ggplot(aes(x=price)) + 
+      stat_bin(bins = 40) +
+      scale_x_continuous(labels = scales::comma, limits = c(0,400000)) 
+     
+    ggsave(paste0(y,"_",f,".png"), width = 800, height = 600, 
+           units = "px", dpi=200)
+     
+  }
+}
+
+
+# readr
+
+otomoto10k <- read_csv("otomoto.csv", col_types = "fffnnnf?fn", n_max = 10000)
+
+
+#liczba wierszy i kolumn w ramce danych
+
+nrow(otomoto)
+ncol(otomoto)
+
+#pierwszy wiersz
+otomoto[1,]
+
+#wektor z wszystkimi miastami z ogłoszeń
+otomoto$city
+
+# 10 pierwszych i 10 ostatnich wierszy z ramki danych
+head(otomoto, n=10)
+tail(otomoto, n=10)
+
+# operacje na danych pogodowych
+
+pogodawro <- read.csv("s_t_424_2022.csv", header = F)
+
+pogodawro <- pogodawro %>% mutate ( 
+  data = ymd_h( paste( V3, V4, V5, V6, sep="-") ),
+  temp = V30,
+  opad6h = V49
+) %>%
+  select(data, temp, opad6h)
+
+
+
+pogodawro %>% 
+  filter (data >= ymd("2022-04-01") & data <= ymd("2022-04-30") ) %>%
+  ggplot(aes(x=data, y=temp))+
+  geom_line()+
+  theme_minimal()+
+  theme(legend.position = "none")
+
+
+pogodawro %>% 
+  mutate(srednia24 = rollmean(temp, 24, fill=NA)) %>%
+  filter (data >= ymd("2022-04-01") & data <= ymd("2022-04-30") ) %>%
+  ggplot(aes(x=data))+
+  geom_line(aes(y=temp), color="#868686")+
+  geom_line(aes(y=srednia24), color="#D55E00", lwd=1)+
+  theme_minimal()+
+  theme(legend.position = "none")
+
+ggsave("01.png", width = 800, height = 600, 
+       units = "px", dpi=160, bg = "white")
+
+pogodawro %>% 
+  mutate(srednia12 = rollmean(temp, 12, fill=NA, align="center")) %>%
+  mutate(srednia24 = rollmean(temp, 24, fill=NA, align="center")) %>%
+  mutate(srednia36 = rollmean(temp, 36, fill=NA, align="center")) %>%
+  filter (data >= ymd("2022-04-01") & data <= ymd("2022-04-05") ) %>%
+  ggplot(aes(x=data))+
+  geom_line(aes(y=temp), color="#868686")+
+  geom_line(aes(y=srednia12), color="#D55E00", lwd=1)+
+  geom_line(aes(y=srednia24), color="#009E73", lwd=1)+
+  geom_line(aes(y=srednia36), color="#56B4E9", lwd=1)+
+  theme_minimal()+
+  theme(legend.position = "none")
+
+ggsave("02.png", width = 800, height = 600, 
+       units = "px", dpi=160, bg = "white")
+
+
+pogodawro %>% 
+  select(data, temp) %>%
+  mutate(tempminus3h = lag(temp, n=3)) %>%
+  mutate(tempplus7h = lead(temp, n=7)) %>%
+  filter (data >= ymd("2022-04-01"))
+
+sum(pogodawro$opad6h)
+
+pogodawro %>%
+  mutate(sumaopadow = cumsum(opad6h)) %>%
+  ggplot(aes(x=data, y=sumaopadow))+
+  geom_line()+
+  theme_minimal()
+
+ggsave("04.png", width = 800, height = 600, 
+       units = "px", dpi=160, bg = "white")
+
+
+otomoto <- read.csv("otomoto.csv")
+
+otomoto$cwiartka_cen <- ntile(otomoto$price, n=4)
+
+otomoto$procent_tanszych_aut <- 100*percent_rank(otomoto$price)
+
